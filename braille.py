@@ -132,28 +132,41 @@ def decode_str(string, conf):
 ### Brute-forcing
 
 
-def all_block_params(n):
-    factors = list(it.chain.from_iterable(
-        [p] * m for p, m in sp.factorint(n).items()))
+def filter_seen(iterable):
+    seen = set()
 
-    partitions = it.takewhile(lambda p: len(p) <= 4, mit.partitions(factors))
-    partitions = set(tuple(sorted(map(math.prod, partition)))
-                     for partition in partitions)
-    partitions = (tuple(partition) + (1,) * (4 - len(partition))
-                  for partition in partitions)
-    # TODO: generate permutations that take into account repetition of elements
-    partitions = set(it.chain.from_iterable(map(it.permutations, partitions)))
+    for thing in iterable:
+        if thing not in seen:
+            seen.add(thing)
+            yield thing
 
-    yield from partitions
+
+def multiplicative_partitions(n, k=None):
+    factors = it.chain.from_iterable(
+        [p] * m for p, m in sp.factorint(n).items())
+
+    # TODO: I'd like to avoid the filter_seen step by generating distinct
+    # partitions if possible.
+    #
+    # Otherwise, perhaps I should implement the partitioning from scratch as in
+    # https://stackoverflow.com/questions/8558292/how-to-find-multiplicative-partitions-of-any-integer.
+
+    ps = mit.partitions(factors)
+    ps = it.takewhile(lambda p: len(p) <= k, ps) if k else ps
+    ps = map(lambda p: tuple(sorted(map(math.prod, p))), ps)
+    ps = filter_seen(ps)
+    ps = it.chain.from_iterable(map(mit.distinct_permutations, ps))
+
+    yield from ps
 
 
 def all_confs(string):
     n = len(string)
     assert n % 6 == 0
 
-    for cr, cc, br, bc in all_block_params(n // 6):
-        sizes = (cr, cc, br, bc, 3, 2)
-        axes = tuple(range(6))
+    for partition in multiplicative_partitions(n // 6):
+        sizes = (*partition, 3, 2)
+        axes = tuple(range(len(partition) + 2))
 
         for sizes, axes in zip(it.permutations(sizes), it.permutations(axes)):
             yield sizes, axes

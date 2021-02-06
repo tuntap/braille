@@ -90,8 +90,9 @@ def reverse_perm(perm):
 
 
 def unpack_braille(array, conf):
-    sizes, axes = conf
-    return np.transpose(np.reshape(array, sizes), reverse_perm(axes))
+    shape, axes = conf
+    return np.transpose(np.reshape(array, apply_perm(shape, axes)),
+                        reverse_perm(axes))
 
 
 def pack_braille(array, conf):
@@ -166,11 +167,11 @@ def all_confs(string):
     assert n % 6 == 0
 
     for partition in multiplicative_partitions(n // 6):
-        sizes = (*partition, 3, 2)
+        shape = (*partition, 3, 2)
         axes = tuple(range(len(partition) + 2))
 
-        for sizes, axes in zip(it.permutations(sizes), it.permutations(axes)):
-            yield sizes, axes
+        for axes in it.permutations(axes):
+            yield shape, axes
 
 
 def brute(string):

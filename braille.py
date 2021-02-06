@@ -147,10 +147,11 @@ def multiplicative_partitions(n, k=None):
     factors = it.chain.from_iterable(
         [p] * m for p, m in sp.factorint(n).items())
 
-    # TODO: I'd like to avoid the filter_seen step by generating distinct
-    # partitions if possible.
+    # TODO: Try to avoid the filter_seen step by generating distinct partitions
+    # directly if possible.
     #
-    # Otherwise, perhaps I should implement the partitioning from scratch as in
+    # Otherwise, perhaps multiplicative partitioning should be implemented from
+    # scratch
     # https://stackoverflow.com/questions/8558292/how-to-find-multiplicative-partitions-of-any-integer.
 
     ps = mit.partitions(factors)

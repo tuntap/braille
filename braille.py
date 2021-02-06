@@ -8,6 +8,7 @@ import more_itertools as mit
 import numpy as np
 import unicodedata as ud
 import sympy as sp
+import yattag
 
 
 BRAILLE = {
@@ -182,192 +183,149 @@ def brute(string):
             yield res, conf
 
 
-def brute1(string):
-    return set(''.join(np.ravel(decoded)) for decoded, _ in brute(string))
-
-
 ######################################################################
 ###
 ### Utility
 
 
-# TODO: test whether there exists a > 3-tier structure that can't be captured
-# by a <= 3-tier structure
-
-# 1cr 1cc 3br 3bc 3gr 2gc
-# 1br 1bc 3cr 3cc 3gr 2gc
+def brute1(string):
+    return set(''.join(np.ravel(decoded)) for decoded, _ in brute(string))
 
 
-def html(array, conf):
+def format_array_html(array):
+    doc, tag, text = yattag.Doc().tagtext()
+
     def rec(array, depth):
+        class_ = 'depth{}'.format(depth)
+
         if type(array) is not np.ndarray:
-            return str(array)
+            with tag('table', klass=class_):
+                with tag('tr', klass=class_):
+                    with tag('td', klass=class_):
+                        text(str(array))
+        else:
+            with tag('table', klass=class_):
+                with tag('tr', klass=class_):
+                    for i in range(len(array)):
+                        with tag('td', klass=class_):
+                            rec(array[i], depth + 1)
 
-        row = []
+        return doc
 
-        for i in range(len(array)):
-            elem = rec(array[i], depth + 1)
-            row.append('<td class="depth{}">{}</td>'.format(depth, elem))
-
-        tr = '<tr class="depth{}">{}</tr>'.format(depth, '\n'.join(row))
-        return '<table class="depth{}">{}</table>'.format(depth, tr)
-
-    return rec(array, 0)
+    return yattag.indent(rec(array, 0).getvalue())
 
 
-def braille_html(array, conf):
+def format_braille_html(array):
     assert array.ndim >= 3
+    doc, tag, text = yattag.Doc().tagtext()
 
     def rec(array, depth):
+        class_ = 'depth{}'.format(depth)
+
         if array.ndim == 2:
             nr, nc = array.shape
-            table = []
 
-            for r in range(nr):
-                row = []
+            with tag('table', klass=class_):
+                for r in range(nr):
+                    with tag('tr', klass=class_):
+                        for c in range(nc):
+                            with tag('td', klass=class_):
+                                text(str(array[r][c]))
+        else:
+            with tag('table', klass=class_):
+                with tag('tr', klass=class_):
+                    for i in range(len(array)):
+                        with tag('td', klass=class_):
+                            rec(array[i], depth + 1)
 
-                for c in range(nc):
-                    row.append('<td class="depth{}">{}</td>'.format(
-                        depth, array[r][c]))
+        return doc
 
-                table.append('<tr class="depth{}">{}</tr>'.format(
-                    depth, '\n'.join(row)))
-
-            return '<table class="depth{}">{}</table>'.format(
-                depth, '\n'.join(table))
-
-        row = []
-
-        for i in range(len(array)):
-            elem = rec(array[i], depth + 1)
-            row.append('<td class="depth{}">{}</td>'.format(depth, elem))
-
-        tr = '<tr class="depth{}">{}</tr>'.format(depth, '\n'.join(row))
-        return '<table class="depth{}">{}</table>'.format(depth, tr)
-
-    return rec(array, 0)
+    return yattag.indent(rec(array, 0).getvalue())
 
 
-def doit(string):
-    packed = np.fromiter(string, 'U1')
-    array = np.fromiter(range(len(string)), int)
+STYLE = '''
+<style>
+  table {
+    border: 2px solid;
+    padding: 10px;
+    border-radius: 0px;
+    text-align: center;
+  }
+
+  table.depth0 {
+    border-color: #1cc970;
+  }
+
+  table.depth1 {
+    border-color: #e3db3d;
+  }
+
+  table.depth2 {
+    border-color: #1c87c9;
+  }
+
+  table.depth3 {
+    border-color: #ff0000;
+  }
+
+  table.depth4 {
+    border-color: #000000;
+  }
+</style>
+'''
+
+
+def brute2(string):
+    array = np.fromiter(string, 'U1')
+    idx = np.fromiter(range(len(string)), int)
+
+    doc, tag, text = yattag.Doc().tagtext()
+    doc.asis('<!doctype html>')
+
+    with tag('html'):
+        with tag('head'):
+            doc.asis(STYLE)
+
+        with tag('body'):
+            for i, (res, conf) in enumerate(brute(string)):
+                shape, _ = conf
+
+                with tag('h1'):
+                    text('Solution {} {}'.format(i + 1, conf))
+
+                doc.asis(format_array_html(array))
+                doc.stag('br')
+
+                doc.asis(format_array_html(idx))
+                doc.stag('br')
+
+                doc.asis(format_array_html(np.reshape(array, shape)))
+                doc.stag('br')
+
+                doc.asis(format_array_html(np.reshape(idx, shape)))
+                doc.stag('br')
+
+                doc.asis(format_braille_html(unpack_braille(idx, conf)))
+                doc.stag('br')
+
+                doc.asis(format_braille_html(unpack_braille(array, conf)))
+                doc.stag('br')
+
+                doc.asis(format_array_html(res))
+                doc.stag('br')
 
     with open('braille.html', 'w') as f:
-        f.write('''<!doctype html>
-<html>
-<head>
-<style>
-    table {
-        border: 2px solid;
-        padding: 10px;
-        border-radius: 0px;
-        text-align: center;
-    }
-
-    table.depth0 {
-        border-color: #1cc970;
-    }
-
-    table.depth1 {
-        border-color: #e3db3d;
-    }
-
-    table.depth2 {
-        border-color: #1c87c9;
-    }
-</style>
-</head>
-<body>
-''')
-
-        f.write('''<h1>String</h1>
-{}</br>
-{}'''.format(packed, array))
-
-        for i, (_, conf) in enumerate(brute(string)):
-            array = unpack_braille(array, conf)
-            print(i, array.shape, conf[1])
-            sizes, axes = conf
-            f.write('<h1>Table {} ({}, {})</h1>'.format(i + 1, sizes, axes))
-            axes = tuple(a for a in axes if a not in (4, 5)) + (4, 5)
-            f.write(braille_html(array, conf))
-            f.write('\n')
-
-        f.write('''</body>
-</html>
-''')
+        f.write(yattag.indent(doc.getvalue()))
 
 
-PACKED1 = np.fromiter('101010110110000010101001100111101010100101011011001010', 'U1')
-PACKED2 = np.fromiter('111000010010111101111000101011001000011011001011101010001000010111101000101101011010011010', 'U1')
-PACKED3 = np.fromiter('111000010010111101111000101011001000011011001011101010001000010111101000101101011010', 'U1')
+def str_array(iterable):
+    return np.fromiter(iterable, 'U1')
 
-# congratulations
 
-# ---
+def num_array(iterable):
+    return np.fromiter(iterable, int)
 
-# 110000
-# 100110
-# 110110
-# 111100
-# 101110
-# 100000
-# 011110
-# 100011
-# 101010
-# 100000
-# 011110
-# 011000
-# 100110
-# 110110
-# 011010
 
-# ---
-
-# 110000 100110
-# 110110 111100
-# 101110 100000
-# 011110 100011
-# 101010 100000
-# 011110 011000
-# 100110 110110
-# 011010
-
-# ---
-
-# 11 10
-# 00 01
-# 00 10
-
-# 11 11
-# 01 11
-# 10 00
-
-# 10 10
-# 11 00
-# 10 00
-
-# 01 10
-# 11 00
-# 10 11
-
-# 10 10
-# 10 00
-# 10 00
-
-# 01 01
-# 11 10
-# 10 00
-
-# 10 11
-# 01 01
-# 10 10
-
-# 01 xx
-# 10 xx
-# 10 xx
-
-# ---
-
-# 11 10 00 01 00 10 11 11 01 11 10 00 10 10 11 00 10 00 01 10 11 00 10 11
-# 10 10 10 00 10 00 01 01 11 10 10 00 10 11 01 01 10 10 01 xx 10 xx 10 xx
+HELLOTEST = '101010110110000010101001100111101010100101011011001010'
+CONGRATULATIONS = '111000010010111101111000101011001000011011001011101010001000010111101000101101011010011010'
+CONGRATULATION = '111000010010111101111000101011001000011011001011101010001000010111101000101101011010'

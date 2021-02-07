@@ -13,8 +13,8 @@
 # NOTE: It is possible for a single bitstring to decode into different
 # solutions that are just permutations (anagrams) of each other.
 
-# NOTE: Is it possible for a single bitstring to decode into different
-# solutions that contain different letters? So far no examples have been found.
+# NOTE: It is possible for a single bitstring to decode into different
+# solutions that contain different letters.
 
 # NOTE: A Braille array is an ndarray such that: (1) its dtype is U1, (2) it
 # has 3 or more dimensions, (3) the last 2 dimensions are the rows and columns

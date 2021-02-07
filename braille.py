@@ -293,34 +293,37 @@ def brute(string, padding=None):
         for padding in paddings))
 
 
-def format_array_html(array):
-    doc, tag, text = yattag.Doc().tagtext()
+def format_array_html(array, hfunc=None):
+    doc, tag, text, line = yattag.Doc().ttl()
 
-    def rec(array, depth):
+    def rec(array, depth, i):
         class_ = 'depth{}'.format(depth)
 
         if type(array) is not np.ndarray:
             with tag('table', klass=class_):
+                if hfunc:
+                    with tag('tr'):
+                        line('th', hfunc(i), klass=class_)
                 with tag('tr', klass=class_):
                     with tag('td', klass=class_):
                         text(str(array))
         else:
             with tag('table', klass=class_):
                 with tag('tr', klass=class_):
-                    for i in range(len(array)):
+                    for j in range(len(array)):
                         with tag('td', klass=class_):
-                            rec(array[i], depth + 1)
+                            rec(array[j], depth + 1, i + (j,))
 
         return doc
 
-    return rec(array, 0).getvalue()
+    return rec(array, 0, ()).getvalue()
 
 
 def format_braille_html(array, hfunc=None):
-    assert array.ndim > 2
+    assert array.ndim >= 2
     doc, tag, text, line = yattag.Doc().ttl()
 
-    def rec(array, depth):
+    def rec(array, depth, i):
         class_ = 'depth{}'.format(depth)
 
         if array.ndim == 2:
@@ -329,7 +332,7 @@ def format_braille_html(array, hfunc=None):
             with tag('table', klass=class_):
                 if hfunc:
                     with tag('tr'):
-                        line('th', hfunc(array), klass=class_, colspan=nc)
+                        line('th', hfunc(i), klass=class_, colspan=nc)
                 for r in range(nr):
                     with tag('tr', klass=class_):
                         for c in range(nc):
@@ -338,13 +341,13 @@ def format_braille_html(array, hfunc=None):
         else:
             with tag('table', klass=class_):
                 with tag('tr', klass=class_):
-                    for i in range(len(array)):
+                    for j in range(len(array)):
                         with tag('td', klass=class_):
-                            rec(array[i], depth + 1)
+                            rec(array[j], depth + 1, i + (j,))
 
         return doc
 
-    return rec(array, 0).getvalue()
+    return rec(array, 0, ()).getvalue()
 
 
 STYLE = '''
@@ -408,8 +411,10 @@ def brute_visualize(string):
                 line('h2', 'Braille bitstring')
                 doc.asis(format_array_html(array))
 
-                line('h2', 'Shape')
-                doc.asis(format_array_html(np.reshape(array, shape)))
+                line('h2', 'Shape and order')
+                doc.asis(format_array_html(
+                    np.reshape(array, shape),
+                    hfunc=lambda i: str(unpack(idx, conf)[i])))
 
                 line('h2', 'Unpacked ordering')
                 doc.asis(format_braille_html(unpack(idx, conf)))
@@ -417,7 +422,8 @@ def brute_visualize(string):
                 line('h2', 'Unpacked bitstring')
                 doc.asis(format_braille_html(
                     unpack(array, conf),
-                    hfunc=lambda g: BRAILLE_REV[''.join(np.ravel(g))]))
+                    hfunc=lambda i: BRAILLE_REV[''.join(np.ravel(
+                        unpack(array, conf)[i]))]))
 
     with open('braille.html', 'w') as f:
         f.write(yattag.indent(doc.getvalue()))
@@ -458,8 +464,10 @@ def brute_visualize_padding(string, padding):
                 line('h2', 'Padded bitstring')
                 doc.asis(format_array_html(padded))
 
-                line('h2', 'Shape')
-                doc.asis(format_array_html(np.reshape(padded, shape)))
+                line('h2', 'Shape and order')
+                doc.asis(format_array_html(
+                    np.reshape(padded, shape),
+                    hfunc=lambda i: str(unpack(idx, conf)[i])))
 
                 line('h2', 'Unpacked ordering')
                 doc.asis(format_braille_html(unpack(idx, conf)))
@@ -467,7 +475,8 @@ def brute_visualize_padding(string, padding):
                 line('h2', 'Unpacked bitstring')
                 doc.asis(format_braille_html(
                     unpack(padded, conf),
-                    hfunc=lambda a: BRAILLE_REV[''.join(np.ravel(a))]))
+                    hfunc=lambda i: BRAILLE_REV[''.join(np.ravel(
+                        unpack(padded, conf)[i]))]))
 
     with open('braille.html', 'w') as f:
         f.write(yattag.indent(doc.getvalue()))

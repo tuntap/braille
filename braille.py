@@ -52,7 +52,8 @@ def make_braille_chars():
         nums = np.reshape(nums, (6,))
         nums, = np.where(nums == '1')
         nums = list(map(lambda n: n + 1, nums))
-        char = ud.lookup('Braille pattern dots-{}'.format(''.join(map(str, nums))))
+        char = ud.lookup('Braille pattern dots-{}'.format(
+            ''.join(map(str, nums))))
 
         chars[letter] = char
 
@@ -113,21 +114,31 @@ def pack_braille(array, conf):
 # (packed) string
 
 
-def decode(array, conf):
+def decode_array(array, conf, braille_rev=BRAILLE_REV):
+    assert array.ndim == 1
     array = unpack_braille(array, conf)
     decoded = np.zeros(array.shape[:-2], 'U1')
 
     try:
         for i in np.ndindex(decoded.shape):
-            decoded[i] = BRAILLE_REV[''.join(np.ravel(array[i]))]
+            decoded[i] = braille_rev[''.join(np.ravel(array[i]))]
     except KeyError as e:
         return None
 
     return decoded
 
 
-def decode_str(string, conf):
-    return decode(np.fromiter(string, 'U1'), conf)
+def encode_array(array, conf, braille=BRAILLE):
+    assert array.ndim == 1
+    encoded = np.zeros((len(array), 3, 2), 'U1')
+
+    try:
+        for i, c in enumerate(array):
+            encoded[i, ...] = np.reshape(np.fromiter(braille[c], 'U1'), (3, 2))
+    except KeyError:
+        return None
+
+    return pack_braille(encoded, conf)
 
 
 ######################################################################
@@ -164,8 +175,7 @@ def multiplicative_partitions(n, k=None):
     yield from ps
 
 
-def all_confs(string):
-    n = len(string)
+def all_confs(n):
     assert n % 6 == 0
 
     for partition in multiplicative_partitions(n // 6):
@@ -176,23 +186,45 @@ def all_confs(string):
             yield shape, axes
 
 
-def brute(string):
-    array = np.fromiter(string, 'U1')
+def brute_array(array):
+    assert array.ndim == 1
 
-    for conf in all_confs(string):
-        res = decode(array, conf)
+    for conf in all_confs(len(array)):
+        decoded = decode_array(array, conf)
 
-        if res is not None:
-            yield res, conf
+        if decoded is not None:
+            yield decoded, conf
+
+
 
 
 ######################################################################
 ###
-### Utility
+### Convenience
+
+
+def str_array(iterable):
+    return np.fromiter(iterable, 'U1')
+
+
+def num_array(iterable):
+    return np.fromiter(iterable, int)
+
+
+def decode(string, conf):
+    return ''.join(decode_array(str_array(string), conf))
+
+
+def encode(string, conf):
+    return ''.join(encode_array(str_array(string), conf))
+
+
+def brute(string):
+    return brute_array(str_array(string))
 
 
 def brute1(string):
-    return set(''.join(np.ravel(decoded)) for decoded, _ in brute(string))
+    return list(''.join(np.ravel(decoded)) for decoded, _ in brute(string))
 
 
 def format_array_html(array):
@@ -324,12 +356,6 @@ def brute2(string):
         f.write(yattag.indent(doc.getvalue()))
 
 
-def str_array(iterable):
-    return np.fromiter(iterable, 'U1')
-
-
-def num_array(iterable):
-    return np.fromiter(iterable, int)
 
 
 HELLOTEST = '101010110110000010101001100111101010100101011011001010'

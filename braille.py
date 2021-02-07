@@ -196,6 +196,25 @@ def brute_array(array):
             yield decoded, conf
 
 
+# TODO: Make nicer.
+def brute_padding(array, padding):
+    assert array.ndim == 1
+    assert padding > 0
+
+    idx = np.fromiter(range(len(array) + 6 * padding), int)
+
+    for conf in all_confs(len(idx)):
+        array2 = array
+        idx2 = unpack_braille(idx, conf)
+        insert = sorted(idx2.flat[-(6 * padding):])
+
+        for i, j in enumerate(insert):
+            array2 = np.insert(array2, j, '?')
+
+        decoded = decode_array(array2, conf)
+
+        if decoded is not None:
+            yield decoded, conf
 
 
 ######################################################################
@@ -372,8 +391,18 @@ def brute2(string):
         f.write(yattag.indent(doc.getvalue()))
 
 
+def brute3(string, padding=1):
+    array = str_array(string)
+    return list(''.join(np.ravel(decoded)) for decoded, _ in
+                brute_padding(array, padding))
 
 
 HELLOTEST = '101010110110000010101001100111101010100101011011001010'
 CONGRATULATIONS = '111000010010111101111000101011001000011011001011101010001000010111101000101101011010011010'
 CONGRATULATION = '111000010010111101111000101011001000011011001011101010001000010111101000101101011010'
+def brute4(string):
+    array = str_array(string)
+    return list(it.chain.from_iterable(
+        map(lambda p: (''.join(np.ravel(decoded)) for decoded, _ in
+                       brute_padding(array, p)),
+            range(1, len(string) // 6))))

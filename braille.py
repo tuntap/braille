@@ -12,6 +12,11 @@ import sympy as sp
 import yattag
 
 
+BRAILLE_SHAPE = (3, 2)
+BRAILLE_NDIM = len(BRAILLE_SHAPE)
+BRAILLE_SIZE = math.prod(BRAILLE_SHAPE)
+
+
 BRAILLE = {
     'a': '100000',
     'b': '101000',
@@ -89,36 +94,23 @@ def reverse_perm(perm):
 
 ######################################################################
 ###
-### Packing
+### Conversions
 
 
-def unpack_braille(array, conf):
+def unpack(array, conf):
     shape, axes = conf
     return np.transpose(np.reshape(array, apply_perm(shape, axes)),
                         reverse_perm(axes))
 
 
-def pack_braille(array, conf):
+def pack(array, conf):
     shape, axes = conf
     return np.ravel(np.transpose(np.reshape(array, shape), axes))
 
 
-######################################################################
-###
-### Encoding and decoding
-
-
-# (packed) bitstring '0101010101010'
-# (packed) bitvector ['0' '1' '0' ...]
-# (unpacked) bitgrid [[[['1' '0' ...]]]]
-# (unpacked) chargrid [[['h' ...]]]
-# (packed) string
-
-
-def decode_array(array, conf, braille_rev=BRAILLE_REV):
-    assert array.ndim == 1
-    array = unpack_braille(array, conf)
-    decoded = np.zeros(array.shape[:-2], 'U1')
+# Convert a Braille array to a char array of similar shape.
+def decode_braille(array, braille_rev=BRAILLE_REV):
+    decoded = np.zeros(array.shape[:-BRAILLE_NDIM], 'U1')
 
     try:
         for i in np.ndindex(decoded.shape):
@@ -129,17 +121,18 @@ def decode_array(array, conf, braille_rev=BRAILLE_REV):
     return decoded
 
 
-def encode_array(array, conf, braille=BRAILLE):
-    assert array.ndim == 1
-    encoded = np.zeros((len(array), 3, 2), 'U1')
+# Convert a char array to a Braille array of similar shape.
+def encode_braille(array, braille=BRAILLE):
+    encoded = np.zeros((*array.shape, *BRAILLE_SHAPE), 'U1')
 
     try:
-        for i, c in enumerate(array):
-            encoded[i, ...] = np.reshape(np.fromiter(braille[c], 'U1'), (3, 2))
+        for i in np.ndindex(array.shape):
+            encoded[i, ...] = np.reshape(
+                np.fromiter(braille[array[i]], 'U1'), BRAILLE_SHAPE)
     except KeyError:
         return None
 
-    return pack_braille(encoded, conf)
+    return encoded
 
 
 ######################################################################
@@ -177,11 +170,11 @@ def multiplicative_partitions(n, k=None):
 
 
 def all_confs(n):
-    assert n % 6 == 0
+    assert n % BRAILLE_SIZE == 0
 
-    for partition in multiplicative_partitions(n // 6):
-        shape = (*partition, 3, 2)
-        axes = tuple(range(len(partition) + 2))
+    for partition in multiplicative_partitions(n // BRAILLE_SIZE):
+        shape = (*partition, *BRAILLE_SHAPE)
+        axes = tuple(range(len(partition) + BRAILLE_NDIM))
 
         for axes in it.permutations(axes):
             yield shape, axes
@@ -189,38 +182,40 @@ def all_confs(n):
 
 def brute_array(array):
     assert array.ndim == 1
-
-    for conf in all_confs(len(array)):
-        decoded = decode_array(array, conf)
-
-        if decoded is not None:
-            yield decoded, conf
+    yield from ((decode_braille(unpack(array, conf)), conf)
+                for conf in all_confs(len(array)))
 
 
-# TODO: Make nicer.
-def brute_padding(array, padding):
+def brute_array_valid(array):
+    yield from ((decoded, conf) for decoded, conf in brute_array(array)
+                if decoded is not None)
+
+
+def brute_array_padding(array, padding):
     assert array.ndim == 1
     assert padding > 0
 
-    idx = np.fromiter(range(len(array) + 6 * padding), int)
+    idx = np.fromiter(range(len(array) + BRAILLE_SIZE * padding), int)
 
     for conf in all_confs(len(idx)):
-        array2 = array
-        idx2 = unpack_braille(idx, conf)
-        insert = sorted(idx2.flat[-(6 * padding):])
+        insert = sorted(unpack(idx, conf).flat[-(BRAILLE_SIZE * padding):])
 
+        padded = array
         for i, j in enumerate(insert):
-            array2 = np.insert(array2, j, '?')
+            padded = np.insert(padded, j, '?')
 
-        decoded = decode_array(array2, conf)
+        yield decode_braille(unpack(padded, conf)), padded, conf
 
-        if decoded is not None:
-            yield decoded, conf
+
+def brute_array_padding_valid(array, padding):
+    yield from ((decoded, padded, conf) for decoded, padded, conf
+                in brute_array_padding(array, padding)
+                if decoded is not None)
 
 
 ######################################################################
 ###
-### Convenience
+### Utility
 
 
 def str_array(iterable):
@@ -231,36 +226,35 @@ def num_array(iterable):
     return np.fromiter(iterable, int)
 
 
-def decode(string, conf):
-    return ''.join(decode_array(str_array(string), conf))
+def decode(string, conf=((-1, *BRAILLE_SHAPE), (0, 1, 2))):
+    assert len(string) % BRAILLE_SIZE == 0
+    return ''.join(np.ravel(decode_braille(unpack(str_array(string), conf))))
 
 
-def encode(string, conf):
-    return ''.join(encode_array(str_array(string), conf))
+def encode(string, conf=((-1, *BRAILLE_SHAPE), (0, 1, 2))):
+    return ''.join(np.ravel(pack(encode_braille(str_array(string)), conf)))
 
 
-def encode1(string):
-    return ''.join(encode_array(str_array(string), ((-1, 3, 2), (0, 1, 2))))
-
-
-def encode2(string):
-    conf = ((-1, 3, 2), (0, 1, 2))
-    return unpack_braille(encode_array(str_array(string), conf), conf)
-
-
-def encode3(string):
-    conf = ((-1, 3, 2), (0, 1, 2))
-    array = unpack_braille(encode_array(str_array(string), conf), conf)
-    array = np.transpose(array, reverse_perm((1, 0, 2)))
+def encode_visual(string):
+    array = np.transpose(encode_braille(str_array(string)), (1, 0, 2))
     return '\n'.join(' '.join(''.join(g) for g in row) for row in array)
 
 
-def brute(string):
-    return brute_array(str_array(string))
+def brute(string, padding=None):
+    assert len(string) % BRAILLE_SIZE == 0
+    array = str_array(string)
 
+    if not padding:
+        return set(''.join(np.ravel(decoded))
+                   for decoded, _ in brute_array_valid(array))
 
-def brute1(string):
-    return list(''.join(np.ravel(decoded)) for decoded, _ in brute(string))
+    paddings = (range(1, len(string) // BRAILLE_SIZE)
+                if padding == -1 else [padding])
+
+    return set(it.chain.from_iterable(
+        (''.join(np.ravel(decoded)).replace('?', '') for decoded, _, _
+         in brute_array_padding_valid(array, padding))
+        for padding in paddings))
 
 
 def format_array_html(array):
@@ -287,7 +281,7 @@ def format_array_html(array):
 
 
 def format_braille_html(array, hfunc=None):
-    assert array.ndim >= 3
+    assert array.ndim > 2
     doc, tag, text, line = yattag.Doc().ttl()
 
     def rec(array, depth):
@@ -349,14 +343,15 @@ STYLE = '''
 '''
 
 
-def brute2(string):
-    array = np.fromiter(string, 'U1')
-    idx = np.fromiter(range(len(string)), int)
+def brute_visualize(string):
+    assert len(string) % BRAILLE_SIZE == 0
+    array = str_array(string)
+    idx = num_array(range(len(string)))
 
     doc, tag, text, line = yattag.Doc().ttl()
     doc.asis('<!doctype html>')
 
-    res = list(brute(string))
+    res = list(brute_array_valid(str_array(string)))
     count = collections.defaultdict(int)
 
     for decoded, _ in res:
@@ -381,26 +376,62 @@ def brute2(string):
                 doc.asis(format_array_html(np.reshape(array, shape)))
 
                 line('h2', 'Unpacked ordering')
-                doc.asis(format_braille_html(unpack_braille(idx, conf)))
+                doc.asis(format_braille_html(unpack(idx, conf)))
 
                 line('h2', 'Unpacked bitstring')
                 doc.asis(format_braille_html(
-                    unpack_braille(array, conf),
+                    unpack(array, conf),
                     hfunc=lambda a: BRAILLE_REV[''.join(np.ravel(a))]))
 
     with open('braille.html', 'w') as f:
         f.write(yattag.indent(doc.getvalue()))
 
 
-def brute3(string, padding=1):
+def brute_visualize_padding(string, padding):
+    assert len(string) % BRAILLE_SIZE == 0
     array = str_array(string)
-    return list(''.join(np.ravel(decoded)) for decoded, _ in
-                brute_padding(array, padding))
 
+    doc, tag, text, line = yattag.Doc().ttl()
+    doc.asis('<!doctype html>')
 
-def brute4(string):
-    array = str_array(string)
-    return list(it.chain.from_iterable(
-        map(lambda p: (''.join(np.ravel(decoded)) for decoded, _ in
-                       brute_padding(array, p)),
-            range(1, len(string) // 6))))
+    paddings = (range(1, len(string) // BRAILLE_SIZE)
+                if padding == -1 else [padding])
+    res = list(it.chain.from_iterable(
+        brute_array_padding_valid(array, padding) for padding in paddings))
+    count = collections.defaultdict(int)
+
+    for decoded, _, _ in res:
+        count[''.join(np.ravel(decoded))] += 1
+
+    with tag('html'):
+        with tag('head'):
+            doc.asis(STYLE)
+
+        with tag('body'):
+            for i, (decoded, padded, conf) in enumerate(res):
+                shape, axes = conf
+                idx = num_array(range(len(padded)))
+
+                line('h1', 'Solution {} ({}, {}, {} ({}))'.format(
+                    i + 1, *conf, ''.join(np.ravel(decoded)),
+                    count[''.join(np.ravel(decoded))]))
+
+                line('h2', 'Braille bitstring')
+                doc.asis(format_array_html(array))
+
+                line('h2', 'Padded bitstring')
+                doc.asis(format_array_html(padded))
+
+                line('h2', 'Shape')
+                doc.asis(format_array_html(np.reshape(padded, shape)))
+
+                line('h2', 'Unpacked ordering')
+                doc.asis(format_braille_html(unpack(idx, conf)))
+
+                line('h2', 'Unpacked bitstring')
+                doc.asis(format_braille_html(
+                    unpack(padded, conf),
+                    hfunc=lambda a: BRAILLE_REV[''.join(np.ravel(a))]))
+
+    with open('braille.html', 'w') as f:
+        f.write(yattag.indent(doc.getvalue()))

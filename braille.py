@@ -219,6 +219,22 @@ def encode(string, conf):
     return ''.join(encode_array(str_array(string), conf))
 
 
+def encode1(string):
+    return ''.join(encode_array(str_array(string), ((-1, 3, 2), (0, 1, 2))))
+
+
+def encode2(string):
+    conf = ((-1, 3, 2), (0, 1, 2))
+    return unpack_braille(encode_array(str_array(string), conf), conf)
+
+
+def encode3(string):
+    conf = ((-1, 3, 2), (0, 1, 2))
+    array = unpack_braille(encode_array(str_array(string), conf), conf)
+    array = np.transpose(array, reverse_perm((1, 0, 2)))
+    return '\n'.join(' '.join(''.join(g) for g in row) for row in array)
+
+
 def brute(string):
     return brute_array(str_array(string))
 

@@ -2,6 +2,36 @@
 # -*- coding: utf-8 -*-
 
 
+# NOTE: The regular scheme doesn't capture reversals or permutations of items
+# within a group.
+
+# NOTE: Duplicate solutions arise when a correct shape's sizes are further
+# broken down into their factors while preserving the ordering of the axes. We
+# can't throw away the broken down shape completely though because they might
+# yield new solutions when coupled with different orderings.
+
+# NOTE: It is possible for a single bitstring to decode into different
+# solutions that are just permutations (anagrams) of each other.
+
+# NOTE: Is it possible for a single bitstring to decode into different
+# solutions that contain different letters? So far no examples have been found.
+
+# NOTE: A Braille array is an ndarray such that: (1) its dtype is U1, (2) it
+# has 3 or more dimensions, (3) the last 2 dimensions are the rows and columns
+# (in that order) of a Braille glyph, and (4) it contains only the characters
+# '0' and '1'. This is the "internal representation" of a sequence of Braille
+# glyphs.
+
+# NOTE: A char array is an ndarray of dtype U1.
+
+# NOTE: A string array is a 1-dimensional char array.
+
+# NOTE: A bitstring array is string array containing only the characters '0'
+# and '1'.
+
+# NOTE: A bitstring is a string containing only the characters '0' and '1'.
+
+
 import collections
 import itertools as it
 import math

@@ -41,6 +41,7 @@ BRAILLE = {
     'z': '100111',
 }
 BRAILLE_REV = {v: k for k, v in BRAILLE.items()}
+BRAILLE_REV['??????'] = '?'
 
 
 def make_braille_chars():

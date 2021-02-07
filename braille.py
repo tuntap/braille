@@ -258,16 +258,22 @@ def num_array(iterable):
 
 def decode(string, conf=((-1, *BRAILLE_SHAPE), (0, 1, 2))):
     assert len(string) % BRAILLE_SIZE == 0
-    return ''.join(np.ravel(decode_braille(unpack(str_array(string), conf))))
+    decoded = decode_braille(unpack(str_array(string), conf))
+    if decoded is None: return None
+    return ''.join(np.ravel(decoded))
 
 
 def encode(string, conf=((-1, *BRAILLE_SHAPE), (0, 1, 2))):
-    return ''.join(np.ravel(pack(encode_braille(str_array(string)), conf)))
+    encoded = encode_braille(str_array(string))
+    if encoded is None: return None
+    return ''.join(np.ravel(pack(encoded, conf)))
 
 
 def encode_visual(string):
-    array = np.transpose(encode_braille(str_array(string)), (1, 0, 2))
-    return '\n'.join(' '.join(''.join(g) for g in row) for row in array)
+    encoded = encode_braille(str_array(string))
+    if encoded is None: return None
+    return '\n'.join(' '.join(''.join(g) for g in row)
+                     for row in np.transpose(encoded, (1, 0, 2)))
 
 
 def brute(string, padding=None):

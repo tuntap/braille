@@ -95,9 +95,9 @@ def make_braille_chars():
 
     return chars
 
-
-BRAILLE_CHARS = make_braille_chars()
-BRAILLE_CHARS_REV = {v: k for k, v in BRAILLE_CHARS.items()}
+if BRAILLE_SHAPE == (3, 2):
+    BRAILLE_CHARS = make_braille_chars()
+    BRAILLE_CHARS_REV = {v: k for k, v in BRAILLE_CHARS.items()}
 
 
 ######################################################################

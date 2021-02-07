@@ -214,7 +214,7 @@ def format_array_html(array):
 
         return doc
 
-    return yattag.indent(rec(array, 0).getvalue())
+    return rec(array, 0).getvalue()
 
 
 def format_braille_html(array):
@@ -242,7 +242,7 @@ def format_braille_html(array):
 
         return doc
 
-    return yattag.indent(rec(array, 0).getvalue())
+    return rec(array, 0).getvalue()
 
 
 STYLE = '''

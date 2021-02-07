@@ -97,8 +97,8 @@ def unpack_braille(array, conf):
 
 
 def pack_braille(array, conf):
-    _, axes = conf
-    return np.ravel(np.transpose(array, axes))
+    shape, axes = conf
+    return np.ravel(np.transpose(np.reshape(array, shape), axes))
 
 
 ######################################################################

@@ -411,7 +411,7 @@ def brute_visualize(string):
                 line('h2', 'Unpacked bitstring')
                 doc.asis(format_braille_html(
                     unpack(array, conf),
-                    hfunc=lambda a: BRAILLE_REV[''.join(np.ravel(a))]))
+                    hfunc=lambda g: BRAILLE_REV[''.join(np.ravel(g))]))
 
     with open('braille.html', 'w') as f:
         f.write(yattag.indent(doc.getvalue()))

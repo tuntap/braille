@@ -299,7 +299,7 @@ def format_array_html(array, hfunc=None):
     def rec(array, depth, i):
         class_ = 'depth{}'.format(depth)
 
-        if type(array) is not np.ndarray:
+        if not isinstance(array, np.ndarray):
             with tag('table', klass=class_):
                 if hfunc:
                     with tag('tr'):
@@ -319,7 +319,7 @@ def format_array_html(array, hfunc=None):
     return rec(array, 0, ()).getvalue()
 
 
-def format_braille_html(array, hfunc=None):
+def format_braille_like_array_html(array, hfunc=None):
     assert array.ndim >= 2
     doc, tag, text, line = yattag.Doc().ttl()
 
@@ -382,101 +382,72 @@ STYLE = '''
 '''
 
 
-def brute_visualize(string):
-    assert len(string) % BRAILLE_SIZE == 0
-    array = str_array(string)
-    idx = num_array(range(len(string)))
-
-    doc, tag, text, line = yattag.Doc().ttl()
-    doc.asis('<!doctype html>')
-
-    res = list(brute_array_valid(str_array(string)))
-    count = collections.defaultdict(int)
-
-    for decoded, _ in res:
-        count[''.join(np.ravel(decoded))] += 1
-
-    with tag('html'):
-        with tag('head'):
-            doc.asis(STYLE)
-
-        with tag('body'):
-            for i, (decoded, conf) in enumerate(res):
-                shape, axes = conf
-
-                line('h1', 'Solution {} ({}, {}, {} ({}))'.format(
-                    i + 1, *conf, ''.join(np.ravel(decoded)),
-                    count[''.join(np.ravel(decoded))]))
-
-                line('h2', 'Braille bitstring')
-                doc.asis(format_array_html(array))
-
-                line('h2', 'Shape and order')
-                doc.asis(format_array_html(
-                    np.reshape(array, shape),
-                    hfunc=lambda i: str(unpack(idx, conf)[i])))
-
-                line('h2', 'Unpacked ordering')
-                doc.asis(format_braille_html(unpack(idx, conf)))
-
-                line('h2', 'Unpacked bitstring')
-                doc.asis(format_braille_html(
-                    unpack(array, conf),
-                    hfunc=lambda i: BRAILLE_REV[''.join(np.ravel(
-                        unpack(array, conf)[i]))]))
-
-    with open('braille.html', 'w') as f:
-        f.write(yattag.indent(doc.getvalue()))
-
-
-def brute_visualize_padding(string, padding):
+def format_brute_html(string, padding=None):
     assert len(string) % BRAILLE_SIZE == 0
     array = str_array(string)
 
     doc, tag, text, line = yattag.Doc().ttl()
-    doc.asis('<!doctype html>')
 
-    paddings = (range(1, len(string) // BRAILLE_SIZE)
-                if padding == -1 else [padding])
-    res = list(it.chain.from_iterable(
-        brute_array_padding_valid(array, padding) for padding in paddings))
+    if not padding:
+        res = list((decoded, array, conf) for decoded, conf
+                   in brute_array_valid(str_array(string)))
+    else:
+        paddings = (range(1, len(string) // BRAILLE_SIZE)
+                    if padding == -1 else [padding])
+        res = list(it.chain.from_iterable(
+            brute_array_padding_valid(array, padding) for padding in paddings))
+
     count = collections.defaultdict(int)
 
     for decoded, _, _ in res:
-        count[''.join(np.ravel(decoded))] += 1
+        count[''.join(np.ravel(decoded)).replace('?', '')] += 1
+
+    line('h1', 'Bitstring {}'.format(string))
+
+    for i, (decoded, padded, conf) in enumerate(res):
+        shape, axes = conf
+        string = ''.join(np.ravel(decoded)).replace('?', '')
+        idx = unpack(num_array(range(len(padded))), conf)
+        unpacked = unpack(padded, conf)
+
+        line('h2', 'Solution {} ({}, {}, {} ({}))'.format(
+            i + 1, shape, axes, string, count[string]))
+
+        line('h3', 'Braille bitstring')
+        doc.asis(format_array_html(array))
+
+        if padded is not array:
+            line('h3', 'Padded bitstring')
+            doc.asis(format_array_html(padded))
+
+        line('h3', 'Shape and order')
+        doc.asis(format_array_html(
+            unpacked, hfunc=lambda j: str(idx[j])))
+
+        line('h3', 'Unpacked ordering')
+        doc.asis(format_braille_like_array_html(idx))
+
+        line('h3', 'Unpacked bitstring')
+        doc.asis(format_braille_like_array_html(
+            unpacked, hfunc=lambda j: BRAILLE_REV[''.join(np.ravel(
+                unpacked[j]))]))
+
+    return doc.getvalue()
+
+
+def brute_visualize(string, padding=None):
+    doc, tag, text = yattag.Doc().tagtext()
+    doc.asis('<!doctype html>')
+
+    strings = [string] if isinstance(string, str) else list(string)
 
     with tag('html'):
         with tag('head'):
             doc.asis(STYLE)
 
         with tag('body'):
-            for i, (decoded, padded, conf) in enumerate(res):
-                shape, axes = conf
-                idx = num_array(range(len(padded)))
-
-                line('h1', 'Solution {} ({}, {}, {} ({}))'.format(
-                    i + 1, *conf, ''.join(np.ravel(decoded)),
-                    count[''.join(np.ravel(decoded))]))
-
-                line('h2', 'Braille bitstring')
-                doc.asis(format_array_html(array))
-
-                line('h2', 'Padded bitstring')
-                doc.asis(format_array_html(padded))
-
-                line('h2', 'Shape and order')
-                doc.asis(format_array_html(
-                    np.reshape(padded, shape),
-                    hfunc=lambda i: str(unpack(idx, conf)[i])))
-
-                line('h2', 'Unpacked ordering')
-                doc.asis(format_braille_html(unpack(idx, conf)))
-
-                line('h2', 'Unpacked bitstring')
-                doc.asis(format_braille_html(
-                    unpack(padded, conf),
-                    hfunc=lambda i: BRAILLE_REV[''.join(np.ravel(
-                        unpack(padded, conf)[i]))]))
+            for string in strings:
+                doc.asis(format_brute_html(string, padding=padding))
 
     with open('braille.html', 'w') as f:
         f.write(yattag.indent(doc.getvalue()))
